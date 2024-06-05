@@ -2,6 +2,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -36,13 +37,8 @@ class ClientHandler implements Runnable { // Runnable enables threading
                 } else if (isSetCommand && s.matches("[a-zA-Z]+")) {
                     String key = s;
                     String value = "";
-                    while(bf.ready()) {
-                        String line = bf.readLine();
-                        if (line.matches("[a-zA-Z]+")) {
-                            value = line;
-                        }
-                    }
-                    dataStore.put(key, value);
+                    SetCommandParams setCommandParams = parseSetCommand(bf);
+                    dataStore.put(setCommandParams.key, setCommandParams.value, setCommandParams.expiry);
                 } else if (isGetComand && s.matches("[a-zA-Z]+")) {
                     String key = s;
                     String value = dataStore.get(key);
@@ -56,8 +52,41 @@ class ClientHandler implements Runnable { // Runnable enables threading
         }
     }
 
+    private SetCommandParams parseSetCommand(BufferedReader bf) throws IOException {
+        boolean isExpiryPresent = false;
+        Long expiry = null;
+        String key = "";
+        String value = "";
+        boolean keyRead = false;
+        while(bf.ready()) {
+            String line = bf.readLine();
+            if (isExpiryPresent && line.matches("[0-9]+")) {
+                expiry = Long.parseLong(line);
+            } else if (line.equalsIgnoreCase("px")) {
+                isExpiryPresent = true;
+            } else if (keyRead && line.matches("[a-zA-Z]+")) {
+                value = line;
+            } else if (line.matches("[a-zA-Z]+")) {
+                key = line;
+            }
+        }
+        return new SetCommandParams(key, value, expiry);
+    }
+
     private String wrapAsOutput(String value) {
         return "+" + value + "\r\n";
+    }
+}
+
+class SetCommandParams {
+    String key = "";
+    String value = "";
+    Long expiry = null;
+
+    public SetCommandParams(String key, String value, Long expiry) {
+        this.key = key;
+        this.value = value;
+        this.expiry = expiry;
     }
 }
 
@@ -86,15 +115,38 @@ class HttpServer {
     }
 }
 
+class Node {
+    String value;
+    Long createdAt;
+    Long expiry;
+
+    public Node(String value, Long createdAt, Long expiry) {
+        this.value = value;
+        this.createdAt = createdAt;
+        this.expiry = expiry;
+    }
+}
+
 class DataStore {
-    private ConcurrentHashMap<String, String> redisHashMap = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, Node> redisHashMap = new ConcurrentHashMap<>();
 
     public void put (String key, String value) {
-        redisHashMap.put(key, value);
+        put(key, value, null);
+    }
+
+    public void put (String key, String value, Long expiryInSeconds) {
+        redisHashMap.put(key, new Node(value, Instant.now().getEpochSecond(), null));
     }
 
     public String get(String key) {
-        return redisHashMap.getOrDefault(key, "");
+        Node value = redisHashMap.get(key);
+        if (value == null) {
+            return "";
+        }
+        if (value.expiry != null && value.expiry + value.createdAt < Instant.now().getEpochSecond()) {
+            return "";
+        }
+        return value.value;
     }
 
 }
