@@ -1,11 +1,19 @@
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
+// Completed Till Expiry
+
+// TODO:
+//  1. Handle Multiple Pings lessons failing
+//      can't parse string with \n
+// 2. Connection abruptly closing by server.
 
 class ClientHandler implements Runnable { // Runnable enables threading
     private Socket clientSocket;
@@ -25,7 +33,7 @@ class ClientHandler implements Runnable { // Runnable enables threading
             while(bf.ready()) {
                 String s = bf.readLine();
                 if (s.equalsIgnoreCase("ping")) {
-                    clientSocket.getOutputStream().write(HttpResponse.getPong.getBytes());
+                    printWriter.write(HttpResponse.getPong);
                 } else if (s.equalsIgnoreCase("hey")) {
                     isHeyCommand = true;
                 } else if (s.equalsIgnoreCase("set")) {
@@ -33,7 +41,7 @@ class ClientHandler implements Runnable { // Runnable enables threading
                 } else if (s.equalsIgnoreCase("get")) {
                     isGetComand = true;
                 } else if(isHeyCommand && s.matches("[a-zA-Z]+")) {
-                    clientSocket.getOutputStream().write(wrapAsOutput(s).getBytes());
+                    printWriter.write(wrapAsOutput(s));
                 } else if (isSetCommand && s.matches("[a-zA-Z]+")) {
                     String key = s;
                     String value = "";
@@ -42,13 +50,20 @@ class ClientHandler implements Runnable { // Runnable enables threading
                 } else if (isGetComand && s.matches("[a-zA-Z]+")) {
                     String key = s;
                     String value = dataStore.get(key);
-                    clientSocket.getOutputStream().write(wrapAsOutput(value).getBytes());
+                    printWriter.write(wrapAsOutput(value));
                 }
             }
+            printWriter.flush();
             System.out.println("Pong is sent.");
         } catch (IOException e) {
             System.out.println("There is an exception");
             System.out.println("IOException: " + e.getMessage());
+        } finally {
+            try {
+                clientSocket.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
