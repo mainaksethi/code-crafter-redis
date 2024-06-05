@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
-// Completed Till Expiry
+// Completed Till Expiry Lesson.
 
 // TODO:
 //  1. Handle Multiple Pings lessons failing
